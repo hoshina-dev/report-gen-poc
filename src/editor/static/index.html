@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Template Editor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <header>
+      <h1>📄 PDF Template Editor</h1>
+      <div class="toolbar">
+        <button id="btn-save"   class="btn btn-primary">Save</button>
+        <button id="btn-export" class="btn">Export PDF</button>
+      </div>
+    </header>
+
+    <main>
+
+      <!-- ── Left Panel ─────────────────────────────────────────────── -->
+      <section class="panel left-panel">
+
+        <!-- Variables dropdown -->
+        <div class="editor-section">
+          <h3>Variables</h3>
+          <p class="hint">Pick a variable, then copy it into a component's content.</p>
+          <div class="var-row">
+            <select id="variable-select" class="var-select">
+              <option value="" disabled selected>Loading…</option>
+            </select>
+            <button id="btn-copy-var" class="btn btn-sm btn-icon" title="Copy {{variable}} to clipboard">
+              📋
+            </button>
+          </div>
+          <div id="copy-feedback" class="copy-feedback" style="display:none">Copied!</div>
+        </div>
+
+        <!-- Components list -->
+        <div class="editor-section">
+          <h3>Components</h3>
+          <div id="components-list" class="components-list"></div>
+          <div class="btn-row">
+            <button id="btn-add-text"  class="btn btn-sm">+ Text</button>
+            <button id="btn-add-shape" class="btn btn-sm">+ Shape</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ── Canvas (middle) ────────────────────────────────────────── -->
+      <section class="panel canvas-panel">
+        <h2>Canvas</h2>
+        <div id="canvas-container" class="canvas-container">
+          <div id="canvas-page" class="canvas-page"></div>
+        </div>
+      </section>
+
+      <!-- ── Inspector (right) ─────────────────────────────────────── -->
+      <section class="panel right-panel">
+        <h2>Inspector</h2>
+
+        <div id="inspector-empty" class="inspector-empty">
+          <p>Select a component to edit</p>
+        </div>
+
+        <div id="inspector-properties" style="display:none">
+
+          <div class="inspector-section">
+            <label><strong>ID</strong></label>
+            <input type="text" id="prop-id" readonly>
+          </div>
+
+          <div class="inspector-section">
+            <label><strong>Position</strong></label>
+            <div class="input-group">
+              <input type="number" id="prop-x"      placeholder="X"      min="0" step="1">
+              <input type="number" id="prop-y"      placeholder="Y"      min="0" step="1">
+            </div>
+            <div class="input-group">
+              <input type="number" id="prop-width"  placeholder="W"  min="10" step="1">
+              <input type="number" id="prop-height" placeholder="H" min="10" step="1">
+            </div>
+          </div>
+
+          <!-- Text properties -->
+          <div id="text-props" class="inspector-section" style="display:none">
+            <label><strong>Content</strong></label>
+            <textarea id="prop-content" placeholder="Text (supports {{variables}})"></textarea>
+
+            <label><strong>Font</strong></label>
+            <select id="prop-font">
+              <option value="Helvetica">Helvetica</option>
+              <option value="Times-Roman">Times</option>
+              <option value="Courier">Courier</option>
+            </select>
+
+            <label><strong>Size</strong></label>
+            <input type="number" id="prop-size" min="6" max="72" step="1" value="12">
+
+            <label><strong>Align</strong></label>
+            <select id="prop-align">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+
+            <label><strong>Text color</strong></label>
+            <div class="color-row">
+              <input type="color" id="prop-text-color"     value="#000000">
+              <input type="text"  id="prop-text-color-hex" value="#000000" maxlength="7" placeholder="#000000">
+            </div>
+
+            <div class="checkbox-row">
+              <label><input type="checkbox" id="prop-bold">   Bold</label>
+              <label><input type="checkbox" id="prop-italic"> Italic</label>
+            </div>
+          </div>
+
+          <!-- Shape properties -->
+          <div id="shape-props" class="inspector-section" style="display:none">
+            <label><strong>Shape</strong></label>
+            <select id="prop-shape-type">
+              <option value="rect">Rectangle</option>
+              <option value="line">Line</option>
+              <option value="circle">Circle</option>
+            </select>
+
+            <label><strong>Color</strong></label>
+            <div class="color-row">
+              <input type="color" id="prop-color" value="#000000">
+              <input type="text"  id="prop-color-hex" value="#000000" maxlength="7" placeholder="#000000">
+            </div>
+
+            <label><strong>Stroke width</strong></label>
+            <input type="number" id="prop-stroke-width" min="0.5" max="20" step="0.5" value="1">
+
+            <div class="checkbox-row">
+              <label><input type="checkbox" id="prop-fill"> Fill</label>
+            </div>
+          </div>
+
+          <button id="btn-delete" class="btn btn-danger btn-sm">Delete Component</button>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/static/editor.js"></script>
+</body>
+</html>

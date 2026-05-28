@@ -1,0 +1,11 @@
+charset-normalizer==3.4.7
+    # via reportlab
+pillow==12.2.0
+    # via reportlab
+reportlab==4.5.1
+    # via pdf-report-gen
+
+# Editor dependencies (FastAPI)
+fastapi==0.112.0
+uvicorn==0.30.0
+pydantic==2.9.2
