@@ -29,8 +29,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="PDF Template Editor", version="0.1.0")
 
-# ── File path (hardcoded for dev) ──────────────────────────────────────────
-JSON_PATH = Path(__file__).parents[2] / "data" / "1.json"
+JSON_PATH = Path(Config.from_env().json_input)
 
 # ── In-memory state ────────────────────────────────────────────────────────
 # Layout: only "template" + "components"

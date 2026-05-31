@@ -60,7 +60,7 @@ def generate_pdf(data: dict) -> bytes:
     return engine.render("pdf", context)
 
 
-def generate_pdf_to_file(data: dict, path: str = "generated/output.pdf") -> str:
+def generate_pdf_to_file(data: dict, path: str) -> str:
     """Render PDF and write it to *path*, creating parent directories as needed."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     pdf_bytes = generate_pdf(data)

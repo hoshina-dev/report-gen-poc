@@ -10,7 +10,6 @@ Default (no flags): run the PDF report generator.
 import argparse
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -24,20 +23,21 @@ logging.basicConfig(
 
 
 def _run_generator() -> int:
-    raw = os.environ.get("JSON_INPUT")
-    if raw:
+    cfg = Config.from_env()
+    raw = cfg.json_input
+
+    if raw.strip().startswith("{"):
+        # Inline JSON string (production: Argo passes full payload as env var)
         data = json.loads(raw)
     else:
-        fallback = Path(__file__).parents[1] / "data" / "1.json"
-        if fallback.exists():
-            logging.getLogger(__name__).info(
-                "No JSON_INPUT env var — using %s", fallback
-            )
-            with fallback.open() as f:
+        path = Path(raw)
+        if path.exists():
+            logging.getLogger(__name__).info("Loading JSON from %s", path)
+            with path.open() as f:
                 data = json.load(f)
         else:
             logging.getLogger(__name__).warning(
-                "No JSON_INPUT and no fallback file — using minimal example"
+                "JSON_INPUT path %s not found — using minimal example", path
             )
             data = {
                 "template": "{{full_name}} ({{country}}) — plan: {{plan}}",
@@ -62,7 +62,6 @@ def _run_generator() -> int:
                 "plan": "premium",
             }
 
-    cfg = Config.from_env()
     generate_pdf_to_file(data, f"{cfg.output_dir}/output.pdf")
     return 0
 
