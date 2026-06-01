@@ -1,10 +1,9 @@
 """
-Context flattening — converts a raw JSON payload into a flat str→str dict
-suitable for {{field}} interpolation.
+Context flattening — converts a raw experiment data payload into a flat
+str→str dict suitable for {{field}} interpolation.
 
 Rules:
 - Top-level scalars (str, int, float, bool) → included directly.
-- Keys "template" and "components" are skipped (those are layout, not data).
 - Any dict value that has a "questions" list (form-like structure) → each
   question's ``id`` becomes a key with ``[label]`` as a placeholder value.
 - Other nested dicts → flatten one level deep with ``parent_key`` notation.
@@ -17,9 +16,6 @@ from typing import Any
 # Only valid Python identifiers are usable as {{field}} names
 _VALID_KEY = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
-# Keys that define the layout — never part of the data context
-_LAYOUT_KEYS = {"components"}
-
 
 def flatten_context(data: dict[str, Any]) -> dict[str, str]:
     """
@@ -31,9 +27,6 @@ def flatten_context(data: dict[str, Any]) -> dict[str, str]:
     context: dict[str, str] = {}
 
     for key, value in data.items():
-        if key in _LAYOUT_KEYS:
-            continue
-
         if isinstance(value, (str, int, float, bool)):
             if _VALID_KEY.match(key):
                 context[key] = str(value)
@@ -101,6 +94,16 @@ def group_variables(data: dict[str, Any]) -> list[dict]:
     - calculations keys    → "Calculations"
     """
     groups: list[dict] = []
+
+    # Top-level scalar fields (e.g. template, name, sample_id)
+    top_level = [
+        {"id": k, "label": k}
+        for k, v in data.items()
+        if isinstance(v, (str, int, float, bool))
+        and _VALID_KEY.match(k)
+    ]
+    if top_level:
+        groups.append({"name": "Fields", "variables": top_level})
 
     # Form-like objects
     for json_key, display_name in _FORM_SOURCES:
