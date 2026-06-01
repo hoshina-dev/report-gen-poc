@@ -16,7 +16,7 @@ format:
 	uv run black . && uv run isort .
 
 clean:
-	rm -rf generated/
+	find generated/ -name "*.pdf" -delete 2>/dev/null || true
 
 requirements:
 	uv export --no-hashes --format requirements-txt > requirements.txt
