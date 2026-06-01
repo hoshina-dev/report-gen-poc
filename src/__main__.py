@@ -22,47 +22,23 @@ logging.basicConfig(
 )
 
 
+def _load_json(value: str) -> object:
+    """Load JSON from an inline string or a file path."""
+    if value.strip().startswith("{") or value.strip().startswith("["):
+        return json.loads(value)
+    with Path(value).open() as f:
+        return json.load(f)
+
+
 def _run_generator() -> int:
     cfg = Config.from_env()
-    raw = cfg.json_input
-
-    if raw.strip().startswith("{"):
-        # Inline JSON string (production: Argo passes full payload as env var)
-        data = json.loads(raw)
-    else:
-        path = Path(raw)
-        if path.exists():
-            logging.getLogger(__name__).info("Loading JSON from %s", path)
-            with path.open() as f:
-                data = json.load(f)
-        else:
-            logging.getLogger(__name__).warning(
-                "JSON_INPUT path %s not found — using minimal example", path
-            )
-            data = {
-                "template": "{{full_name}} ({{country}}) — plan: {{plan}}",
-                "components": [
-                    {
-                        "id": "title",
-                        "type": "text",
-                        "content": "Report",
-                        "rect": [50, 750, 500, 30],
-                        "style": {"font": "Helvetica-Bold", "size": 24},
-                    },
-                    {
-                        "id": "body",
-                        "type": "text",
-                        "content": "{{template}}",
-                        "rect": [50, 680, 512, 60],
-                        "style": {"font": "Helvetica", "size": 12},
-                    },
-                ],
-                "full_name": "Hoshina Suzuki",
-                "country": "Japan",
-                "plan": "premium",
-            }
-
-    generate_pdf_to_file(data, f"{cfg.output_dir}/output.pdf")
+    data = _load_json(cfg.data_json)
+    components = _load_json(cfg.components_json)
+    if not isinstance(data, dict):
+        raise RuntimeError(f"DATA_JSON must be a JSON object, got {type(data).__name__}")
+    if not isinstance(components, list):
+        raise RuntimeError(f"COMPONENTS_JSON must be a JSON array, got {type(components).__name__}")
+    generate_pdf_to_file(data, components, cfg.pdf_output)
     return 0
 
 

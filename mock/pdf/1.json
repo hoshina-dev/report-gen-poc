@@ -1,0 +1,228 @@
+[
+  {
+    "id": "header_bg",
+    "fill": true,
+    "rect": [0, 742, 612, 50],
+    "type": "shape",
+    "color": "#1565C0",
+    "shape_type": "rect",
+    "stroke_width": 0
+  },
+  {
+    "id": "header_accent",
+    "fill": true,
+    "rect": [0, 738, 612, 4],
+    "type": "shape",
+    "color": "#0D47A1",
+    "shape_type": "rect",
+    "stroke_width": 0
+  },
+  {
+    "id": "header_title",
+    "rect": [24, 763, 420, 22],
+    "type": "text",
+    "style": {
+      "bold": true,
+      "font": "Helvetica",
+      "size": 16,
+      "align": "left",
+      "color": "#FFFFFF",
+      "italic": false
+    },
+    "content": "CHEMICAL ANALYSIS REPORT"
+  },
+  {
+    "id": "header_subtitle",
+    "rect": [24, 743, 420, 16],
+    "type": "text",
+    "style": {
+      "bold": false,
+      "font": "Helvetica",
+      "size": 10,
+      "align": "left",
+      "color": "#BBDEFB",
+      "italic": false
+    },
+    "content": "Heat Capacity Determination — Activated Charcoal"
+  },
+  {
+    "id": "header_id",
+    "rect": [460, 755, 130, 14],
+    "type": "text",
+    "style": {
+      "bold": false,
+      "font": "Helvetica",
+      "size": 9,
+      "align": "right",
+      "color": "#BBDEFB",
+      "italic": false
+    },
+    "content": "Ref: {{sample_id}}"
+  },
+  {
+    "id": "header_date",
+    "rect": [460, 743, 130, 12],
+    "type": "text",
+    "style": {
+      "bold": false,
+      "font": "Helvetica",
+      "size": 9,
+      "align": "right",
+      "color": "#BBDEFB",
+      "italic": false
+    },
+    "content": "{{analysis_date}}"
+  },
+  {
+    "id": "section_sample_label",
+    "rect": [50, 717, 250, 14],
+    "type": "text",
+    "style": {
+      "bold": true,
+      "font": "Helvetica",
+      "size": 9,
+      "align": "left",
+      "color": "#1565C0",
+      "italic": false
+    },
+    "content": "SAMPLE INFORMATION"
+  },
+  {
+    "id": "section_sample_divider",
+    "fill": false,
+    "rect": [50, 714, 512, 2],
+    "type": "shape",
+    "color": "#1565C0",
+    "shape_type": "line",
+    "stroke_width": 0.75
+  },
+  {
+    "id": "sample_info",
+    "rect": [50, 606, 512, 100],
+    "type": "text",
+    "style": {
+      "bold": false,
+      "font": "Courier",
+      "size": 10,
+      "align": "left",
+      "color": "#212121",
+      "italic": false
+    },
+    "content": "Sample ID:              {{sample_id}}\nSource / Grade:         {{sample_source}}\nMass:                   {{sample_mass}} g\nInstrument:             {{instrument}}\nMethod:                 {{method_ref}}\nAnalyst:                {{analyst_name}}  |  Lab: {{lab_id}}"
+  },
+  {
+    "id": "section_results_label",
+    "rect": [50, 589, 250, 14],
+    "type": "text",
+    "style": {
+      "bold": true,
+      "font": "Helvetica",
+      "size": 9,
+      "align": "left",
+      "color": "#1565C0",
+      "italic": false
+    },
+    "content": "MEASUREMENT RESULTS"
+  },
+  {
+    "id": "section_results_divider",
+    "fill": false,
+    "rect": [50, 579, 512, 2],
+    "type": "shape",
+    "color": "#1565C0",
+    "shape_type": "line",
+    "stroke_width": 0.75
+  },
+  {
+    "id": "results_table_bg",
+    "fill": true,
+    "rect": [50, 507, 512, 62],
+    "type": "shape",
+    "color": "#E3F2FD",
+    "shape_type": "rect",
+    "stroke_width": 0
+  },
+  {
+    "id": "results_table_border",
+    "fill": false,
+    "rect": [50, 507, 512, 62],
+    "type": "shape",
+    "color": "#90CAF9",
+    "shape_type": "rect",
+    "stroke_width": 0.75
+  },
+  {
+    "id": "results_data",
+    "rect": [58, 505, 496, 56],
+    "type": "text",
+    "style": {
+      "bold": false,
+      "font": "Courier",
+      "size": 10,
+      "align": "left",
+      "color": "#0D47A1",
+      "italic": false
+    },
+    "content": "Initial temp.   T1 = {{temperature_initial}} °C          Final temp.   T2 = {{temperature_final}} °C\nDT = {{delta_T}} °C                               Calorimeter const.  C = {{calorimeter_constant}} J/°C\nHeat released   Q = {{heat_released}} J             Specific heat  = {{specific_heat}} J/g\nMolar heat capacity (C, M = 12.011 g/mol)  =  {{molar_heat_capacity}} J/mol"
+  },
+  {
+    "id": "section_analysis_label",
+    "rect": [50, 479, 250, 14],
+    "type": "text",
+    "style": {
+      "bold": true,
+      "font": "Helvetica",
+      "size": 9,
+      "align": "left",
+      "color": "#1565C0",
+      "italic": false
+    },
+    "content": "ANALYSIS SUMMARY"
+  },
+  {
+    "id": "section_analysis_divider",
+    "fill": false,
+    "rect": [50, 471, 512, 2],
+    "type": "shape",
+    "color": "#1565C0",
+    "shape_type": "line",
+    "stroke_width": 0.75
+  },
+  {
+    "id": "analysis_body",
+    "rect": [50, 293, 512, 163],
+    "type": "text",
+    "style": {
+      "bold": false,
+      "font": "Helvetica",
+      "size": 10,
+      "align": "left",
+      "color": "#212121",
+      "italic": false
+    },
+    "content": "{{template}}"
+  },
+  {
+    "id": "footer_line",
+    "fill": false,
+    "rect": [50, 58, 512, 2],
+    "type": "shape",
+    "color": "#BDBDBD",
+    "shape_type": "line",
+    "stroke_width": 0.5
+  },
+  {
+    "id": "footer_text",
+    "rect": [50, 44, 512, 12],
+    "type": "text",
+    "style": {
+      "bold": false,
+      "font": "Helvetica",
+      "size": 8,
+      "align": "center",
+      "color": "#9E9E9E",
+      "italic": true
+    },
+    "content": "Confidential — For internal use only.  Generated: {{analysis_date}}  |  {{lab_id}}"
+  }
+]

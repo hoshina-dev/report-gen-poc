@@ -18,7 +18,7 @@ from typing import Any
 _VALID_KEY = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
 # Keys that define the layout — never part of the data context
-_LAYOUT_KEYS = {"template", "components"}
+_LAYOUT_KEYS = {"components"}
 
 
 def flatten_context(data: dict[str, Any]) -> dict[str, str]:

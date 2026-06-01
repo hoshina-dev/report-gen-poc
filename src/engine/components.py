@@ -79,10 +79,7 @@ class TextComponent(Component):
             font += "-Oblique"
 
         c.setFont(font, self.style.size)
-        try:
-            c.setFillColor(HexColor(self.style.color))
-        except Exception:
-            pass
+        c.setFillColor(HexColor(self.style.color))
 
         size   = self.style.size
         line_h = size * 1.2
@@ -149,10 +146,7 @@ class ShapeComponent(Component):
     fill: bool = False
 
     def render_pdf(self, c: Any, context: dict) -> None:
-        try:
-            color = HexColor(self.color)
-        except Exception:
-            color = HexColor("#000000")
+        color = HexColor(self.color)
         c.setStrokeColor(color)
         c.setLineWidth(self.stroke_width)
         fill_flag = 1 if self.fill else 0
@@ -167,8 +161,10 @@ class ShapeComponent(Component):
         elif self.shape_type == "circle":
             r = min(w, h) / 2
             c.circle(x + w / 2, y + h / 2, r, stroke=1, fill=fill_flag)
+        else:
+            raise ValueError(f"Unknown shape_type: {self.shape_type!r}")
 
-    def render_html(self, context: dict) -> str:
+    def render_html(self, context: dict) -> str:  # noqa: ARG002
         css_top = _PAGE_H - self.rect.y - self.rect.height
         w, h    = self.rect.width, self.rect.height
         pos     = (
@@ -197,7 +193,7 @@ class ShapeComponent(Component):
                 f'stroke="{self.color}" stroke-width="{sw}" fill="{fill}"/>'
             )
         else:
-            inner = ""
+            raise ValueError(f"Unknown shape_type: {self.shape_type!r}")
 
         return (
             f'<div style="{pos}overflow:visible;">'
@@ -222,10 +218,15 @@ class PageBreakComponent(Component):
 
 def component_from_dict(data: dict) -> Component:
     comp_type = data.get("type")
-    comp_id   = data.get("id", "unknown")
+    comp_id   = data.get("id")
+
+    if not comp_id:
+        raise ValueError(f"Component is missing required 'id' field: {data!r}")
 
     if comp_type == "text":
-        rect = Rect.from_list(data.get("rect", [0, 0, 100, 20]))
+        if "rect" not in data:
+            raise ValueError(f"Text component {comp_id!r} is missing required 'rect' field")
+        rect = Rect.from_list(data["rect"])
         s    = data.get("style", {})
         style = TextStyle(
             font=s.get("font", "Helvetica"),
@@ -239,7 +240,9 @@ def component_from_dict(data: dict) -> Component:
                              content=data.get("content", ""), style=style)
 
     elif comp_type == "shape":
-        rect = Rect.from_list(data.get("rect", [0, 0, 50, 50]))
+        if "rect" not in data:
+            raise ValueError(f"Shape component {comp_id!r} is missing required 'rect' field")
+        rect = Rect.from_list(data["rect"])
         return ShapeComponent(
             id=comp_id, type="shape", rect=rect,
             shape_type=data.get("shape_type", "rect"),
@@ -252,4 +255,4 @@ def component_from_dict(data: dict) -> Component:
         return PageBreakComponent(id=comp_id)
 
     else:
-        raise ValueError(f"Unknown component type: {comp_type}")
+        raise ValueError(f"Unknown component type: {comp_type!r} (id={comp_id!r})")
