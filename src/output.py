@@ -6,11 +6,13 @@ from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas as rl_canvas
 
+from .config import R2Config
 from .engine import TemplateEngine
 from .engine.components import (PageBreakComponent, ShapeComponent,
                                 TextComponent)
 from .engine.context import flatten_context
 from .engine.parser import interpolate_template
+from .r2 import upload_pdf
 
 
 def generate_pdf(data: dict, components: list) -> bytes:
@@ -20,9 +22,15 @@ def generate_pdf(data: dict, components: list) -> bytes:
     return render_pdf(engine.components, ctx)
 
 
-def generate_pdf_to_file(
-    data: dict, components: list, path: str
-) -> str:  # will be deprecated after setting up R2, replace with upload_pdf_to_s3
+def generate_pdf_to_r2(data: dict, components: list, r2_cfg: R2Config) -> str:
+    """Generate PDF and upload to R2. Returns the object key."""
+    pdf_bytes = generate_pdf(data, components)
+    key = f"pdfs/{data.get('id', '')}.pdf"
+    upload_pdf(pdf_bytes, key, r2_cfg)
+    return key
+
+
+def generate_pdf_to_file(data: dict, components: list, path: str) -> str:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     pdf_bytes = generate_pdf(data, components)
     with open(path, "wb") as f:

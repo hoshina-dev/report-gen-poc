@@ -21,6 +21,7 @@ Always use `uv run` — the venv is managed by uv, not the system Python.
 | `src/engine/context.py` | `flatten_context()` / `group_variables()` — converts experiment JSON to `{{field}}` dict |
 | `src/engine/parser.py` | `{{field}}` interpolation and extraction |
 | `src/output.py` | PDF rendering (`render_pdf`) + CLI entry (`generate_pdf`, `generate_pdf_to_file`) |
+| `src/r2.py` | Cloudflare R2 helpers — `upload_pdf`, `presign_download`, `R2Config` |
 | `src/config.py` | `Config` (CLI) and `EditorConfig` (editor); reads `.env` |
 | `src/__main__.py` | Entry point — `python -m src` for CLI, `--editor` flag for dev server |
 | `src/editor/server.py` | FastAPI dev server; imports `render_pdf` from `output.py` |
@@ -35,6 +36,7 @@ functional CLI PDF generator. The dependency chain is:
 ```
 src/engine/   ← pure: parse / validate / build_context
 src/output.py ← PDF rendering (reportlab); imported by CLI and editor
+src/r2.py     ← R2 upload + presign; imported only by __main__
 src/editor/   ← dev tool only; imports render_pdf from output.py
 ```
 
@@ -76,6 +78,32 @@ If invalid, the server raises a clear `RuntimeError` at startup — not a generi
 
 Never INSERT/DELETE from `experiment_templates` — that table is owned by the external
 experiment manager service.
+
+## Production flow (Kubernetes / Argo)
+
+`__main__._run_generator()` runs in three stages:
+
+1. **Generate** — `output.generate_pdf(data, components)` returns PDF bytes
+2. **Upload** — if `S3_BUCKET` is set, `r2.upload_pdf(bytes, key, cfg)` pushes to R2.
+   Key format: `pdfs/{exp_tmpl_id}/{timestamp}.pdf`. No fallback — errors raise and exit 1.
+   If `S3_BUCKET` is not set (local dev), `generate_pdf_to_file` writes to `PDF_OUTPUT`.
+3. **Webhook** — if `WEBHOOK_URL` is set, `POST {WEBHOOK_URL}/api/experiments/{exp_tmpl_id}/report`
+   with `{"status": "success"|"failed", "r2_key": "...", "generated_at": "..."}`.
+   Retries 3× with 2 s backoff; webhook failure never changes the job exit code.
+
+Argo passes `data-json` and `components-json` as workflow parameters (inline JSON strings).
+R2 credentials are mounted from a Kubernetes Secret named `r2-credentials`.
+
+## R2 storage (`src/r2.py`)
+
+- `R2Config.from_env()` — loads `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`
+- `R2Config.is_configured()` — returns True if `S3_BUCKET` is set; used by `__main__` to detect prod vs local
+- `upload_pdf(bytes, key, cfg)` — `PUT` to R2 with `ContentType: application/pdf`; raises on error
+- `presign_download(key, cfg, expires_in=900)` — 15-min signed GET URL; call on demand, never store the URL
+
+`addressing_style = "path"` (boto3) is mandatory — R2 does not support virtual-hosted-style URLs.
+
+Store only the object key in the DB. Generate a fresh presigned URL on every download request.
 
 ## No fallbacks — fail loudly
 
@@ -128,7 +156,6 @@ Static CSS is versioned: `<link rel="stylesheet" href="/static/style.css?v=N">`.
 - Don't assume components have a `page` field — page membership is positional, use `splitIntoPages()`
 - Don't use blue (`#2196F3`, `#64b5f6`) for active-page indicators — use `#beffb6`
 - Don't add the `calculations_` prefix to calculation keys — they're exposed directly
-- Don't commit anything under `always-ignore/` — local-only scratch space
 - Don't add `try/except` that swallows exceptions silently — log + re-raise or raise `HTTPException`
 - Don't use `data.get("key", default)` for required fields — use `data["key"]` and let `KeyError` surface
 - Don't add rendering code to `src/engine/` — rendering belongs in `output.py` or `editor/`

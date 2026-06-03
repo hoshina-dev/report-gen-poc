@@ -8,6 +8,12 @@ anyio==4.13.0
     # via starlette
 black==26.5.1
     # via pdf-report-gen
+boto3==1.43.21
+    # via pdf-report-gen
+botocore==1.43.21
+    # via
+    #   boto3
+    #   s3transfer
 certifi==2026.5.20
     # via requests
 charset-normalizer==3.4.7
@@ -30,6 +36,10 @@ idna==3.16
     #   requests
 isort==8.0.1
     # via pdf-report-gen
+jmespath==1.1.0
+    # via
+    #   boto3
+    #   botocore
 mypy-extensions==1.1.0
     # via black
 packaging==26.2
@@ -48,6 +58,8 @@ pydantic==2.13.4
     #   pdf-report-gen
 pydantic-core==2.46.4
     # via pydantic
+python-dateutil==2.9.0.post0
+    # via botocore
 python-dotenv==1.2.2
     # via pdf-report-gen
 pytokens==0.4.1
@@ -56,6 +68,10 @@ reportlab==4.5.1
     # via pdf-report-gen
 requests==2.34.2
     # via pdf-report-gen
+s3transfer==0.18.0
+    # via boto3
+six==1.17.0
+    # via python-dateutil
 starlette==1.1.0
     # via fastapi
 typing-extensions==4.15.0
@@ -71,6 +87,8 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
 urllib3==2.7.0
-    # via requests
+    # via
+    #   botocore
+    #   requests
 uvicorn==0.48.0
     # via pdf-report-gen
