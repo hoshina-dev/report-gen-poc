@@ -188,17 +188,28 @@ async function loadVariables() {
 
 // ── Save ─────────────────────────────────────────────────────────────────
 async function saveTemplate() {
-  const res = await fetch("/api/template", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(templateData),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    flash(`ERROR: Save failed — ${err.detail}`, "error");
-    return;
+  const btn = document.getElementById("btn-save");
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  try {
+    const res = await fetch("/api/template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(templateData),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      flash(`ERROR: Save failed — ${err.detail}`, "error");
+      return;
+    }
+    flash("Saved ✓");
+  } catch (err) {
+    flash(`ERROR: Save failed — ${err.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
   }
-  flash("Saved ✓");
 }
 
 // ── Add text component ────────────────────────────────────────────────────
@@ -766,10 +777,21 @@ async function onTemplateChange(e) {
 
 // ── Export PDF ────────────────────────────────────────────────────────────
 async function exportPDF() {
-  const res = await fetch("/api/render/pdf", { method: "POST" });
-  const data = await res.json();
-  if (!res.ok) { flash(`ERROR: Export failed — ${data.detail}`, "error"); return; }
-  flash(`PDF saved — ${(data.size / 1024).toFixed(1)} KB → ${data.path}`);
+  const btn = document.getElementById("btn-export");
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Exporting…";
+  try {
+    const res = await fetch("/api/render/pdf", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) { flash(`ERROR: Export failed — ${data.detail}`, "error"); return; }
+    flash(`PDF saved — ${(data.size / 1024).toFixed(1)} KB → ${data.path}`);
+  } catch (err) {
+    flash(`ERROR: Export failed — ${err.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────
