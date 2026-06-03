@@ -35,9 +35,13 @@ def _run_generator() -> int:
     data = _load_json(cfg.data_json)
     components = _load_json(cfg.components_json)
     if not isinstance(data, dict):
-        raise RuntimeError(f"DATA_JSON must be a JSON object, got {type(data).__name__}")
+        raise RuntimeError(
+            f"DATA_JSON must be a JSON object, got {type(data).__name__}"
+        )
     if not isinstance(components, list):
-        raise RuntimeError(f"COMPONENTS_JSON must be a JSON array, got {type(components).__name__}")
+        raise RuntimeError(
+            f"COMPONENTS_JSON must be a JSON array, got {type(components).__name__}"
+        )
     generate_pdf_to_file(data, components, cfg.pdf_output)
     return 0
 

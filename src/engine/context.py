@@ -99,8 +99,7 @@ def group_variables(data: dict[str, Any]) -> list[dict]:
     top_level = [
         {"id": k, "label": k}
         for k, v in data.items()
-        if isinstance(v, (str, int, float, bool))
-        and _VALID_KEY.match(k)
+        if isinstance(v, (str, int, float, bool)) and _VALID_KEY.match(k)
     ]
     if top_level:
         groups.append({"name": "Fields", "variables": top_level})

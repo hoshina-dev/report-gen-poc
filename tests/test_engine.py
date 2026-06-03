@@ -3,9 +3,9 @@ Stateless engine tests — no editor, no DB, no file I/O.
 Run: make test
 """
 
-from engine import Rect, TemplateEngine
-from engine.parser import extract_fields
-
+from src.engine import Rect, TemplateEngine
+from src.engine.parser import extract_fields
+from src.output import render_pdf
 
 COMPONENTS = [
     {
@@ -33,23 +33,16 @@ CONTEXT = {
 
 def test_pdf_render():
     engine = TemplateEngine(COMPONENTS)
-    pdf = engine.render(format="pdf", context=CONTEXT)
+    ctx = engine.build_context(CONTEXT)
+    pdf = render_pdf(engine.components, ctx)
     assert pdf.startswith(b"%PDF"), "Not a valid PDF"
     assert len(pdf) > 0
     print(f"✅ PDF render ({len(pdf)} bytes)")
 
 
-def test_html_render():
-    engine = TemplateEngine(COMPONENTS)
-    html = engine._render_html(CONTEXT)
-    assert "Alice" in html
-    assert "PDF Generator" in html
-    print("✅ HTML render")
-
-
 def test_template_interpolation():
     engine = TemplateEngine(COMPONENTS)
-    ctx = engine._build_context(CONTEXT)
+    ctx = engine.build_context(CONTEXT)
     assert ctx["template"] == "Hello Alice, welcome to the PDF Generator!"
     print("✅ Template interpolation")
 
@@ -57,7 +50,7 @@ def test_template_interpolation():
 def test_no_components_raises():
     engine = TemplateEngine([])
     try:
-        engine.render(format="pdf", context=CONTEXT)
+        render_pdf(engine.components, CONTEXT)
         assert False, "Expected ValueError"
     except ValueError as e:
         assert "no components" in str(e).lower()
@@ -91,7 +84,8 @@ def test_shape_component():
         }
     ]
     engine = TemplateEngine(components)
-    pdf = engine.render(format="pdf", context={})
+    ctx = engine.build_context({})
+    pdf = render_pdf(engine.components, ctx)
     assert pdf.startswith(b"%PDF")
     print("✅ Shape component")
 
@@ -102,7 +96,6 @@ if __name__ == "__main__":
     test_field_extraction()
     test_template_interpolation()
     test_pdf_render()
-    test_html_render()
     test_no_components_raises()
     test_shape_component()
     print("\n✅ All tests passed!")

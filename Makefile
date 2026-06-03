@@ -7,7 +7,7 @@ editor:
 	uv run python -m src --editor
 
 test:
-	PYTHONPATH=src uv run python tests/test_engine.py
+	PYTHONPATH=. uv run python tests/test_engine.py
 
 lint:
 	uv run black --check . && uv run isort --check .
