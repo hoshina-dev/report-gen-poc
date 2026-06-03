@@ -52,6 +52,7 @@ def render_pdf(components: list, context: dict[str, Any]) -> bytes:
         label = f"Page {current_page} of {total_pages}"
         label_w = c.stringWidth(label, "Helvetica", 10)
         c.setFont("Helvetica", 10)
+        c.setFillColor(HexColor("#000000"))
         c.drawString((page_width - label_w) / 2, 30, label)
 
     for comp in components:
