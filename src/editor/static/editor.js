@@ -60,6 +60,21 @@ function setupListeners() {
   // Text color picker ↔ hex text
   syncColorPair("prop-text-color", "prop-text-color-hex");
 
+  // Right-panel tab switching
+  document.getElementById("tab-btn-inspector").addEventListener("click", () => {
+    document.getElementById("tab-inspector").style.display = "block";
+    document.getElementById("tab-pages").style.display     = "none";
+    document.getElementById("tab-btn-inspector").classList.add("tab-btn-active");
+    document.getElementById("tab-btn-pages").classList.remove("tab-btn-active");
+  });
+  document.getElementById("tab-btn-pages").addEventListener("click", () => {
+    document.getElementById("tab-inspector").style.display = "none";
+    document.getElementById("tab-pages").style.display     = "block";
+    document.getElementById("tab-btn-pages").classList.add("tab-btn-active");
+    document.getElementById("tab-btn-inspector").classList.remove("tab-btn-active");
+    renderPagesList();
+  });
+
   // Active page tracks scroll position
   canvasContainer.addEventListener("scroll", () => {
     const top    = canvasContainer.scrollTop;
@@ -70,7 +85,7 @@ function setupListeners() {
       const visible = Math.max(0, Math.min(pb, bottom) - Math.max(pt, top));
       if (visible > bestVisible) { bestVisible = visible; bestPage = parseInt(page.dataset.page); }
     });
-    if (bestPage !== activePage) { activePage = bestPage; updateActivePageVisuals(); }
+    if (bestPage !== activePage) { activePage = bestPage; updateActivePageVisuals(); renderPagesList(); }
   });
 }
 
@@ -267,6 +282,120 @@ function onInspectorChange(e) {
   populateInspector(comp);
 }
 
+// ── Swap two pages (any i, j) in the flat component sequence ─────────────
+function swapPages(i, j) {
+  if (i === j) return;
+  // Split flat array into chunks (page content) and separators (pagebreak objects)
+  const chunks = [];
+  const seps   = [];
+  let current  = [];
+  for (const comp of templateData.components) {
+    if (comp.type === "pagebreak") { chunks.push(current); seps.push(comp); current = []; }
+    else current.push(comp);
+  }
+  chunks.push(current);
+
+  [chunks[i], chunks[j]] = [chunks[j], chunks[i]];
+
+  // Rebuild: chunk0, sep0, chunk1, sep1, ..., chunkN
+  const result = [];
+  for (let k = 0; k < chunks.length; k++) {
+    result.push(...chunks[k]);
+    if (k < seps.length) result.push(seps[k]);
+  }
+  templateData.components = result;
+}
+
+// ── Delete a page (chunk + one adjacent separator) ───────────────────────
+function deletePage(idx) {
+  const chunks = [];
+  const seps   = [];
+  let current  = [];
+  for (const comp of templateData.components) {
+    if (comp.type === "pagebreak") { chunks.push(current); seps.push(comp); current = []; }
+    else current.push(comp);
+  }
+  chunks.push(current);
+  if (chunks.length <= 1) return; // never delete the only page
+
+  chunks.splice(idx, 1);
+  seps.splice(Math.min(idx, seps.length - 1), 1);
+
+  const result = [];
+  for (let k = 0; k < chunks.length; k++) {
+    result.push(...chunks[k]);
+    if (k < seps.length) result.push(seps[k]);
+  }
+  templateData.components = result;
+
+  if (activePage >= chunks.length) activePage = chunks.length - 1;
+  // deselect if selected component was on deleted page
+  if (selectedId && !templateData.components.find(c => c.id === selectedId)) selectedId = null;
+}
+
+// ── Pages-order panel ─────────────────────────────────────────────────────
+function renderPagesList() {
+  const list = document.getElementById("pages-order-list");
+  if (!list) return;
+  const pages = splitIntoPages(templateData.components);
+  const total = pages.length;
+  list.innerHTML = "";
+
+  pages.forEach((pageComps, idx) => {
+    const card = document.createElement("div");
+    card.className = "page-card" + (idx === activePage ? " page-card-active" : "");
+
+    const thumb = document.createElement("div");
+    thumb.className = "page-card-thumb";
+    thumb.textContent = idx + 1;
+
+    const lbl = document.createElement("div");
+    lbl.className = "page-card-label";
+    lbl.textContent = `Page ${idx + 1}`;
+    const sub = document.createElement("small");
+    sub.textContent = `${pageComps.length} component${pageComps.length !== 1 ? "s" : ""}`;
+    lbl.appendChild(sub);
+
+    const btns = document.createElement("div");
+    btns.className = "page-card-btns";
+
+    const btnUp = document.createElement("button");
+    btnUp.textContent = "▲";
+    btnUp.title = "Move page up";
+    btnUp.disabled = idx === 0;
+    btnUp.addEventListener("click", () => { swapPages(idx, idx - 1); activePage = idx - 1; render(); });
+
+    const btnDn = document.createElement("button");
+    btnDn.textContent = "▼";
+    btnDn.title = "Move page down";
+    btnDn.disabled = idx === total - 1;
+    btnDn.addEventListener("click", () => { swapPages(idx, idx + 1); activePage = idx + 1; render(); });
+
+    btns.appendChild(btnUp);
+    btns.appendChild(btnDn);
+
+    const btnDel = document.createElement("button");
+    btnDel.className = "page-card-delete";
+    btnDel.title = "Delete page";
+    btnDel.innerHTML = `<svg width="11" height="13" viewBox="0 0 11 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 3h9"/><path d="M3.5 3V2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1"/>
+      <path d="M2 3.5l.75 7.5h5.5L9 3.5"/><line x1="4.5" y1="5.5" x2="4.5" y2="9"/><line x1="6.5" y1="5.5" x2="6.5" y2="9"/>
+    </svg>`;
+    btnDel.disabled = total <= 1;
+    btnDel.addEventListener("click", () => {
+      if (pageComps.length > 0 && !confirm(`Delete Page ${idx + 1}? It has ${pageComps.length} component${pageComps.length !== 1 ? "s" : ""} that will be removed.`)) return;
+      deletePage(idx);
+      render();
+    });
+
+    card.appendChild(thumb);
+    card.appendChild(lbl);
+    card.appendChild(btns);
+    card.appendChild(btnDel);
+    list.appendChild(card);
+  });
+}
+
 // ── Find the flat-array range [start, end) for a given page index ────────
 function getPageRange(pageIdx) {
   let page = 0, start = 0;
@@ -308,6 +437,7 @@ function render(resetScroll = false) {
   if (resetScroll) activePage = 0;
   renderCanvas(resetScroll);
   renderList();
+  renderPagesList();
 }
 
 function renderCanvas(resetScroll = false) {
