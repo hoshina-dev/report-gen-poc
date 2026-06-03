@@ -126,8 +126,10 @@ function interpolate(text, ctx) {
 function shapeToSvg(comp) {
   const w    = comp.rect[2];
   const h    = comp.rect[3];
-  const c    = comp.color;
-  const sw   = comp.stroke_width;
+  // Allow only valid 3- or 6-digit hex colors; fall back to black
+  const c    = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(comp.color) ? comp.color : "#000000";
+  // Coerce to a finite positive number; fall back to 1
+  const sw   = (isFinite(comp.stroke_width) && comp.stroke_width > 0) ? Number(comp.stroke_width) : 1;
   const fill = comp.fill ? c : "none";
   const half = sw / 2;
   let inner  = "";
@@ -553,7 +555,14 @@ function renderList() {
     }
     const item = document.createElement("div");
     item.className = "component-item" + (comp.id === selectedId ? " selected" : "");
-    item.innerHTML = `<span class="comp-type">${comp.type}</span> <span>${comp.id}</span>`;
+    const typeSpan = document.createElement("span");
+    typeSpan.className = "comp-type";
+    typeSpan.textContent = comp.type;
+    const idSpan = document.createElement("span");
+    idSpan.textContent = comp.id;
+    item.appendChild(typeSpan);
+    item.appendChild(document.createTextNode(" "));
+    item.appendChild(idSpan);
     item.addEventListener("click", () => selectComponent(comp.id));
     componentsList.appendChild(item);
   });
