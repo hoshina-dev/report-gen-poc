@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 def _load_json(value: str) -> object:
     """Load JSON from an inline string or a file path."""
-    if value.strip().startswith("{") or value.strip().startswith("["):
+    if value.strip().startswith(("{", "[")):
         return json.loads(value)
     with Path(value).open() as f:
         return json.load(f)

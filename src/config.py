@@ -18,7 +18,7 @@ def _require(env_key: str) -> str:
 def _require_path(env_key: str) -> str:
     """Return the env value, raising if missing or (when a path) non-existent."""
     val = _require(env_key)
-    if not val.startswith("{"):
+    if not val.startswith(("{", "[")):
         path = Path(val)
         if not path.exists():
             raise RuntimeError(f"{env_key} path does not exist: {path}")
@@ -40,7 +40,7 @@ class Config:
         return cls(
             data_json=_require_path("DATA_JSON"),
             components_json=_require_path("COMPONENTS_JSON"),
-            pdf_output=_require("PDF_OUTPUT"),
+            pdf_output=os.environ.get("PDF_OUTPUT", "") if R2Config.is_configured() else _require("PDF_OUTPUT"),
             webhook_url=os.environ.get("WEBHOOK_URL", ""),
         )
 
@@ -82,7 +82,7 @@ class EditorConfig(Config):
     def from_env(cls) -> "EditorConfig":
         # DATA_JSON is optional — if omitted, editor starts in template-select mode
         data_json_raw = os.environ.get("DATA_JSON", "").strip()
-        if data_json_raw and not data_json_raw.startswith("{"):
+        if data_json_raw and not data_json_raw.startswith(("{", "[")):
             p = Path(data_json_raw)
             if not p.exists():
                 raise RuntimeError(f"DATA_JSON path does not exist: {p}")
