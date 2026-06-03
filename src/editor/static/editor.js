@@ -8,6 +8,7 @@ let editorContext = {};   // flat context from DATA_JSON (for WYSIWYG canvas)
 let selectedId = null;
 let dragId = null;
 let dragPageIdx = 0;
+let activePage = 0;
 let dragOffset = { x: 0, y: 0 };
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
@@ -58,6 +59,19 @@ function setupListeners() {
   syncColorPair("prop-color", "prop-color-hex");
   // Text color picker ↔ hex text
   syncColorPair("prop-text-color", "prop-text-color-hex");
+
+  // Active page tracks scroll position
+  canvasContainer.addEventListener("scroll", () => {
+    const top    = canvasContainer.scrollTop;
+    const bottom = top + canvasContainer.clientHeight;
+    let bestPage = activePage, bestVisible = 0;
+    canvasContainer.querySelectorAll(".canvas-page").forEach(page => {
+      const pt = page.offsetTop, pb = pt + page.offsetHeight;
+      const visible = Math.max(0, Math.min(pb, bottom) - Math.max(pt, top));
+      if (visible > bestVisible) { bestVisible = visible; bestPage = parseInt(page.dataset.page); }
+    });
+    if (bestPage !== activePage) { activePage = bestPage; updateActivePageVisuals(); }
+  });
 }
 
 // ── Load context (for WYSIWYG canvas interpolation) ──────────────────────
@@ -173,7 +187,8 @@ async function saveTemplate() {
 // ── Add text component ────────────────────────────────────────────────────
 function addTextComponent() {
   const id = `text_${Date.now()}`;
-  templateData.components.push({
+  const { end } = getPageRange(activePage);
+  templateData.components.splice(end, 0, {
     id,
     type: "text",
     content: "",
@@ -187,7 +202,8 @@ function addTextComponent() {
 // ── Add shape component ───────────────────────────────────────────────────
 function addShapeComponent() {
   const id = `shape_${Date.now()}`;
-  templateData.components.push({
+  const { end } = getPageRange(activePage);
+  templateData.components.splice(end, 0, {
     id,
     type: "shape",
     shape_type: "rect",
@@ -202,7 +218,8 @@ function addShapeComponent() {
 
 // ── Add page break ────────────────────────────────────────────────────────
 function addPageBreak() {
-  templateData.components.push({ id: `pb_${Date.now()}`, type: "pagebreak" });
+  const { end } = getPageRange(activePage);
+  templateData.components.splice(end, 0, { id: `pb_${Date.now()}`, type: "pagebreak" });
   render();
 }
 
@@ -250,6 +267,32 @@ function onInspectorChange(e) {
   populateInspector(comp);
 }
 
+// ── Find the flat-array range [start, end) for a given page index ────────
+function getPageRange(pageIdx) {
+  let page = 0, start = 0;
+  for (let i = 0; i < templateData.components.length; i++) {
+    if (templateData.components[i].type === "pagebreak") {
+      if (page === pageIdx) return { start, end: i };
+      page++;
+      start = i + 1;
+    }
+  }
+  return { start, end: templateData.components.length };
+}
+
+// ── Update only the active-page outlines/labels without a full re-render ─
+function updateActivePageVisuals() {
+  canvasContainer.querySelectorAll(".canvas-page").forEach(page => {
+    const isActive = parseInt(page.dataset.page) === activePage;
+    page.style.outline      = isActive ? "2px solid #beffb6" : "";
+    page.style.outlineOffset = isActive ? "3px" : "";
+  });
+  canvasContainer.querySelectorAll(".page-label").forEach(label => {
+    const isActive = parseInt(label.dataset.page) === activePage;
+    label.style.color = isActive ? "#beffb6" : "#ddd";
+  });
+}
+
 // ── Split components into pages by pagebreak sentinels ───────────────────
 function splitIntoPages(components) {
   const pages = [[]];
@@ -262,6 +305,7 @@ function splitIntoPages(components) {
 
 // ── Render canvas + component list ───────────────────────────────────────
 function render(resetScroll = false) {
+  if (resetScroll) activePage = 0;
   renderCanvas(resetScroll);
   renderList();
 }
@@ -273,6 +317,7 @@ function renderCanvas(resetScroll = false) {
   canvasContainer.style.flexDirection = "column";
   canvasContainer.style.alignItems = "center";
   canvasContainer.style.justifyContent = "flex-start";
+
   const pages = splitIntoPages(templateData.components);
   const totalPages = pages.length;
 
@@ -280,7 +325,11 @@ function renderCanvas(resetScroll = false) {
     if (totalPages > 1) {
       const label = document.createElement("div");
       label.className = "page-label";
+      label.dataset.page = pageIdx;
       label.textContent = `Page ${pageIdx + 1}`;
+      label.style.color = pageIdx === activePage ? "#beffb6" : "#ddd";
+      label.style.paddingBottom = "8px";
+      label.style.paddingTop = "8px";
       canvasContainer.appendChild(label);
     }
 
@@ -288,6 +337,10 @@ function renderCanvas(resetScroll = false) {
     page.className = "canvas-page";
     page.dataset.page = pageIdx;
     page.addEventListener("click", () => selectComponent(null));
+    if (pageIdx === activePage) {
+      page.style.outline = "2px solid #beffb6";
+      page.style.outlineOffset = "3px";
+    }
 
     const pageNum = document.createElement("div");
     pageNum.textContent = `Page ${pageIdx + 1} of ${totalPages}`;
@@ -379,6 +432,12 @@ function renderList() {
 // ── Select component → populate inspector ────────────────────────────────
 function selectComponent(id) {
   selectedId = id;
+  if (id) {
+    const pages = splitIntoPages(templateData.components);
+    for (let i = 0; i < pages.length; i++) {
+      if (pages[i].some(c => c.id === id)) { activePage = i; break; }
+    }
+  }
   renderCanvas();
   renderList();
 
@@ -434,6 +493,7 @@ function startDrag(e, id, pageIdx) {
   e.preventDefault();
   dragId = id;
   dragPageIdx = pageIdx;
+  activePage = pageIdx;
   const comp = templateData.components.find(c => c.id === id);
   if (!comp) return;
 
