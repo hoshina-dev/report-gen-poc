@@ -3,10 +3,11 @@
  */
 
 // ── State ────────────────────────────────────────────────────────────────
-let templateData = { template: "", components: [] };
-let editorContext = {};   // flat context from 1.json (for WYSIWYG canvas)
+let templateData = { components: [] };
+let editorContext = {};   // flat context from DATA_JSON (for WYSIWYG canvas)
 let selectedId = null;
 let dragId = null;
+let dragPageIdx = 0;
 let dragOffset = { x: 0, y: 0 };
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
@@ -14,27 +15,28 @@ const varSelect       = document.getElementById("variable-select");
 const btnCopyVar      = document.getElementById("btn-copy-var");
 const copyFeedback    = document.getElementById("copy-feedback");
 const componentsList  = document.getElementById("components-list");
-const canvasPage      = document.getElementById("canvas-page");
+const canvasContainer = document.getElementById("canvas-container");
 const inspectorEmpty  = document.getElementById("inspector-empty");
 const inspectorProps  = document.getElementById("inspector-properties");
 
 // ── Init ─────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
-  await loadContext();   // context first so canvas renders WYSIWYG on load
-  loadTemplate();
-  loadVariables();
+  await loadTemplates();   // populate dropdown before checkStatus shows it
+  await checkStatus();     // locks/unlocks UI based on whether DATA_JSON is preloaded
+  await loadContext();
+  await loadTemplate();
+  await loadVariables();
   setupListeners();
 });
 
 function setupListeners() {
-  document.getElementById("btn-save")     .addEventListener("click", saveTemplate);
-  document.getElementById("btn-export")   .addEventListener("click", exportPDF);
-  document.getElementById("btn-add-text") .addEventListener("click", addTextComponent);
-  document.getElementById("btn-add-shape").addEventListener("click", addShapeComponent);
-  document.getElementById("btn-delete")   .addEventListener("click", deleteSelected);
-
-  // Clicking the blank canvas background deselects
-  canvasPage.addEventListener("click", () => selectComponent(null));
+  document.getElementById("btn-save")          .addEventListener("click", saveTemplate);
+  document.getElementById("btn-export")        .addEventListener("click", exportPDF);
+  document.getElementById("btn-add-text")      .addEventListener("click", addTextComponent);
+  document.getElementById("btn-add-shape")     .addEventListener("click", addShapeComponent);
+  document.getElementById("btn-add-pagebreak") .addEventListener("click", addPageBreak);
+  document.getElementById("btn-delete")        .addEventListener("click", deleteSelected);
+  document.getElementById("template-select")   .addEventListener("change", onTemplateChange);
 
   // Copy variable button
   btnCopyVar.addEventListener("click", () => {
@@ -60,24 +62,14 @@ function setupListeners() {
 
 // ── Load context (for WYSIWYG canvas interpolation) ──────────────────────
 async function loadContext() {
-  try {
-    const res  = await fetch("/api/context");
-    const data = await res.json();
-    editorContext = data.context || {};
-  } catch (e) { console.error("loadContext:", e); }
-}
-
-/**
- * Build a resolved context for canvas display:
- * - includes all fields from 1.json
- * - adds "template" key = templateData.template with fields resolved
- */
-function buildDisplayContext() {
-  const ctx = { ...editorContext };
-  if (templateData.template) {
-    ctx.template = interpolate(templateData.template, editorContext);
+  const res = await fetch("/api/context");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    flash(`ERROR: Failed to load context — ${err.detail}`, "error");
+    return;
   }
-  return ctx;
+  const data = await res.json();
+  editorContext = data.context;
 }
 
 /** Keep a color-picker and its hex text input in sync */
@@ -105,8 +97,8 @@ function interpolate(text, ctx) {
 function shapeToSvg(comp) {
   const w    = comp.rect[2];
   const h    = comp.rect[3];
-  const c    = comp.color        || "#000000";
-  const sw   = comp.stroke_width || 1;
+  const c    = comp.color;
+  const sw   = comp.stroke_width;
   const fill = comp.fill ? c : "none";
   const half = sw / 2;
   let inner  = "";
@@ -121,50 +113,61 @@ function shapeToSvg(comp) {
     const r = Math.max(0, Math.min(w, h) / 2 - half);
     inner = `<circle cx="${w / 2}" cy="${h / 2}" r="${r}"
       stroke="${c}" stroke-width="${sw}" fill="${fill}"/>`;
+  } else {
+    flash(`ERROR: Unknown shape_type "${comp.shape_type}" on component ${comp.id}`, "error");
   }
   return `<svg width="${w}" height="${h}" style="display:block;overflow:visible">${inner}</svg>`;
 }
 
 // ── Load template from server ─────────────────────────────────────────────
 async function loadTemplate() {
-  try {
-    const res = await fetch("/api/template");
-    templateData = await res.json();
-    render();
-  } catch (e) { console.error("loadTemplate:", e); }
+  const res = await fetch("/api/template");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    flash(`ERROR: Failed to load template — ${err.detail}`, "error");
+    return;
+  }
+  templateData = await res.json();
+  render(true);
 }
 
 // ── Load variable groups for dropdown ────────────────────────────────────
 async function loadVariables() {
-  try {
-    const res  = await fetch("/api/variables");
-    const data = await res.json();
+  const res = await fetch("/api/variables");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    flash(`ERROR: Failed to load variables — ${err.detail}`, "error");
+    return;
+  }
+  const data = await res.json();
 
-    varSelect.innerHTML = '<option value="" disabled selected>— pick a variable —</option>';
-    for (const group of data.groups || []) {
-      const og = document.createElement("optgroup");
-      og.label = group.name;
-      for (const v of group.variables) {
-        const opt = document.createElement("option");
-        opt.value       = v.id;
-        opt.textContent = `{{${v.id}}} — ${v.label}`;
-        og.appendChild(opt);
-      }
-      varSelect.appendChild(og);
+  varSelect.innerHTML = '<option value="" disabled selected>— pick a variable —</option>';
+  for (const group of data.groups) {
+    const og = document.createElement("optgroup");
+    og.label = group.name;
+    for (const v of group.variables) {
+      const opt = document.createElement("option");
+      opt.value       = v.id;
+      opt.textContent = `{{${v.id}}} — ${v.label}`;
+      og.appendChild(opt);
     }
-  } catch (e) { console.error("loadVariables:", e); }
+    varSelect.appendChild(og);
+  }
 }
 
 // ── Save ─────────────────────────────────────────────────────────────────
 async function saveTemplate() {
-  try {
-    await fetch("/api/template", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(templateData),
-    });
-    flash("Saved ✓");
-  } catch (e) { flash("Save failed", "error"); }
+  const res = await fetch("/api/template", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(templateData),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    flash(`ERROR: Save failed — ${err.detail}`, "error");
+    return;
+  }
+  flash("Saved ✓");
 }
 
 // ── Add text component ────────────────────────────────────────────────────
@@ -173,9 +176,9 @@ function addTextComponent() {
   templateData.components.push({
     id,
     type: "text",
-    content: "{{template}}",
+    content: "",
     rect: [50, 680, 512, 60],
-    style: { font: "Helvetica", size: 12, bold: false, italic: false, align: "left" },
+    style: { font: "Helvetica", size: 12, bold: false, italic: false, align: "left", color: "#000000" },
   });
   render();
   selectComponent(id);
@@ -195,6 +198,12 @@ function addShapeComponent() {
   });
   render();
   selectComponent(id);
+}
+
+// ── Add page break ────────────────────────────────────────────────────────
+function addPageBreak() {
+  templateData.components.push({ id: `pb_${Date.now()}`, type: "pagebreak" });
+  render();
 }
 
 // ── Delete selected component ─────────────────────────────────────────────
@@ -241,79 +250,124 @@ function onInspectorChange(e) {
   populateInspector(comp);
 }
 
+// ── Split components into pages by pagebreak sentinels ───────────────────
+function splitIntoPages(components) {
+  const pages = [[]];
+  for (const comp of components) {
+    if (comp.type === "pagebreak") pages.push([]);
+    else pages[pages.length - 1].push(comp);
+  }
+  return pages;
+}
+
 // ── Render canvas + component list ───────────────────────────────────────
-function render() {
-  renderCanvas();
+function render(resetScroll = false) {
+  renderCanvas(resetScroll);
   renderList();
 }
 
-function renderCanvas() {
-  canvasPage.innerHTML = "";
-  const ctx = buildDisplayContext();   // resolved values for WYSIWYG display
+function renderCanvas(resetScroll = false) {
+  const savedScroll = resetScroll ? 0 : canvasContainer.scrollTop;
+  canvasContainer.innerHTML = "";
+  canvasContainer.style.display = "flex";
+  canvasContainer.style.flexDirection = "column";
+  canvasContainer.style.alignItems = "center";
+  canvasContainer.style.justifyContent = "flex-start";
+  const pages = splitIntoPages(templateData.components);
+  const totalPages = pages.length;
 
-  // ── Fallback ghost: no real components → mirror the engine's default render
-  const realComps = templateData.components.filter(c => c.type !== "pagebreak");
-  if (realComps.length === 0 && templateData.template) {
-    const ghost = document.createElement("div");
-    ghost.style.cssText = `
-      position:absolute; left:50px; top:42px; width:512px; height:700px;
-      font-size:12px; color:#aaa; white-space:pre-wrap; overflow:hidden;
-      border:1px dashed #ddd; padding:4px; pointer-events:none; box-sizing:border-box;
-    `;
-    ghost.textContent = interpolate("{{template}}", ctx);
-    canvasPage.appendChild(ghost);
-    return;
-  }
-
-  templateData.components.forEach(comp => {
-    if (comp.type === "pagebreak") return;
-
-    const el = document.createElement("div");
-    el.className = "canvas-comp";
-    el.dataset.id = comp.id;
-
-    const selected = comp.id === selectedId;
-    // Convert ReportLab y (bottom-left origin) → CSS top (top-left origin)
-    const cssTop = 792 - comp.rect[1] - comp.rect[3];
-    const [rx, ry, rw, rh] = comp.rect;
-
-    // Use outline (not border) so it draws outside the box and never shifts content
-    const outline    = selected ? "2px solid #2196F3" : "1px dashed #ccc";
-    const selShadow  = selected ? "0 0 0 3px rgba(33,150,243,.2)" : "none";
-
-    el.style.cssText = `
-      position:absolute;
-      left:${rx}px; top:${cssTop}px;
-      width:${rw}px; height:${rh}px;
-      cursor:move;
-      overflow:visible;
-      outline:${outline};
-      box-shadow:${selShadow};
-    `;
-
-    if (comp.type === "shape") {
-      el.innerHTML = shapeToSvg(comp);
-    } else {
-      el.style.fontFamily  = comp.style?.font    || "Helvetica";
-      el.style.fontSize    = (comp.style?.size   || 12) + "px";
-      el.style.fontWeight  = comp.style?.bold    ? "bold"   : "normal";
-      el.style.fontStyle   = comp.style?.italic  ? "italic" : "normal";
-      el.style.textAlign   = comp.style?.align   || "left";
-      el.style.color       = comp.style?.color   || "#000000";
-      el.style.whiteSpace  = "pre-wrap";
-      el.textContent = interpolate(comp.content, ctx);
+  pages.forEach((pageComps, pageIdx) => {
+    if (totalPages > 1) {
+      const label = document.createElement("div");
+      label.className = "page-label";
+      label.textContent = `Page ${pageIdx + 1}`;
+      canvasContainer.appendChild(label);
     }
 
-    el.addEventListener("mousedown", e => startDrag(e, comp.id));
-    el.addEventListener("click",     e => { e.stopPropagation(); selectComponent(comp.id); });
-    canvasPage.appendChild(el);
+    const page = document.createElement("div");
+    page.className = "canvas-page";
+    page.dataset.page = pageIdx;
+    page.addEventListener("click", () => selectComponent(null));
+
+    const pageNum = document.createElement("div");
+    pageNum.textContent = `Page ${pageIdx + 1} of ${totalPages}`;
+    pageNum.style.cssText = `
+      position: absolute;
+      bottom: 30px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 10px;
+      font-family: Helvetica, Arial, sans-serif;
+      color: #000;
+      pointer-events: none;
+      user-select: none;
+    `;
+    page.appendChild(pageNum);
+
+    pageComps.forEach(comp => {
+      const el = document.createElement("div");
+      el.className = "canvas-comp";
+      el.dataset.id = comp.id;
+
+      const selected = comp.id === selectedId;
+      const cssTop = 792 - comp.rect[1] - comp.rect[3];
+      const [rx, , rw, rh] = comp.rect;
+
+      el.style.cssText = `
+        position:absolute;
+        left:${rx}px; top:${cssTop}px;
+        width:${rw}px; height:${rh}px;
+        cursor:move;
+        overflow:visible;
+        outline:${selected ? "2px solid #2196F3" : "1px dashed #ccc"};
+        box-shadow:${selected ? "0 0 0 3px rgba(33,150,243,.2)" : "none"};
+      `;
+
+      if (comp.type === "shape") {
+        el.innerHTML = shapeToSvg(comp);
+      } else {
+        el.style.fontFamily = comp.style.font;
+        el.style.fontSize   = comp.style.size + "px";
+        el.style.fontWeight = comp.style.bold   ? "bold"   : "normal";
+        el.style.fontStyle  = comp.style.italic ? "italic" : "normal";
+        el.style.textAlign  = comp.style.align;
+        el.style.color      = comp.style.color;
+        el.style.whiteSpace = "pre-wrap";
+        el.textContent = interpolate(comp.content, editorContext);
+      }
+
+      el.addEventListener("mousedown", e => startDrag(e, comp.id, pageIdx));
+      el.addEventListener("click",     e => { e.stopPropagation(); selectComponent(comp.id); });
+      page.appendChild(el);
+    });
+
+    canvasContainer.appendChild(page);
   });
+
+  canvasContainer.scrollTop = savedScroll;
 }
 
 function renderList() {
   componentsList.innerHTML = "";
+  let pageNum = 1;
+
   templateData.components.forEach(comp => {
-    if (comp.type === "pagebreak") return;
+    if (comp.type === "pagebreak") {
+      pageNum++;
+      const sep = document.createElement("div");
+      sep.className = "page-break-item";
+      sep.innerHTML = `<span>── Page ${pageNum} ──</span>`;
+      const del = document.createElement("button");
+      del.textContent = "✕";
+      del.title = "Remove page break";
+      del.addEventListener("click", () => {
+        templateData.components = templateData.components.filter(c => c.id !== comp.id);
+        render();
+      });
+      sep.appendChild(del);
+      componentsList.appendChild(sep);
+      return;
+    }
     const item = document.createElement("div");
     item.className = "component-item" + (comp.id === selectedId ? " selected" : "");
     item.innerHTML = `<span class="comp-type">${comp.type}</span> <span>${comp.id}</span>`;
@@ -356,39 +410,37 @@ function populateInspector(comp) {
   document.getElementById("shape-props").style.display = isShape ? "block" : "none";
 
   if (isText) {
-    document.getElementById("prop-content").value  = comp.content        || "";
-    document.getElementById("prop-font").value     = comp.style?.font    || "Helvetica";
-    document.getElementById("prop-size").value     = comp.style?.size    || 12;
-    document.getElementById("prop-align").value    = comp.style?.align   || "left";
-    document.getElementById("prop-bold").checked   = comp.style?.bold    || false;
-    document.getElementById("prop-italic").checked = comp.style?.italic  || false;
-    const tc = comp.style?.color || "#000000";
-    document.getElementById("prop-text-color")    .value = tc;
-    document.getElementById("prop-text-color-hex").value = tc;
+    document.getElementById("prop-content").value  = comp.content;
+    document.getElementById("prop-font").value     = comp.style.font;
+    document.getElementById("prop-size").value     = comp.style.size;
+    document.getElementById("prop-align").value    = comp.style.align;
+    document.getElementById("prop-bold").checked   = comp.style.bold;
+    document.getElementById("prop-italic").checked = comp.style.italic;
+    document.getElementById("prop-text-color")    .value = comp.style.color;
+    document.getElementById("prop-text-color-hex").value = comp.style.color;
   }
 
   if (isShape) {
-    const color = comp.color || "#000000";
-    document.getElementById("prop-shape-type")  .value   = comp.shape_type   || "rect";
-    document.getElementById("prop-color")        .value   = color;
-    document.getElementById("prop-color-hex")    .value   = color;
-    document.getElementById("prop-stroke-width") .value   = comp.stroke_width || 1;
-    document.getElementById("prop-fill")         .checked = comp.fill         || false;
+    document.getElementById("prop-shape-type")  .value   = comp.shape_type;
+    document.getElementById("prop-color")        .value   = comp.color;
+    document.getElementById("prop-color-hex")    .value   = comp.color;
+    document.getElementById("prop-stroke-width") .value   = comp.stroke_width;
+    document.getElementById("prop-fill")         .checked = comp.fill;
   }
 }
 
 // ── Drag and drop ─────────────────────────────────────────────────────────
-function startDrag(e, id) {
+function startDrag(e, id, pageIdx) {
   e.preventDefault();
   dragId = id;
+  dragPageIdx = pageIdx;
   const comp = templateData.components.find(c => c.id === id);
   if (!comp) return;
 
-  const rect  = canvasPage.getBoundingClientRect();
-  const compX = comp.rect[0];
-  const compY = 792 - comp.rect[1] - comp.rect[3]; // canvas CSS top
-  dragOffset.x = e.clientX - rect.left - compX;
-  dragOffset.y = e.clientY - rect.top  - compY;
+  const pageEl = canvasContainer.querySelector(`.canvas-page[data-page="${pageIdx}"]`);
+  const rect   = pageEl.getBoundingClientRect();
+  dragOffset.x = e.clientX - rect.left - comp.rect[0];
+  dragOffset.y = e.clientY - rect.top  - (792 - comp.rect[1] - comp.rect[3]);
 
   document.addEventListener("mousemove", onDrag);
   document.addEventListener("mouseup",   stopDrag);
@@ -399,11 +451,11 @@ function onDrag(e) {
   const comp = templateData.components.find(c => c.id === dragId);
   if (!comp) return;
 
-  const rect = canvasPage.getBoundingClientRect();
+  const pageEl = canvasContainer.querySelector(`.canvas-page[data-page="${dragPageIdx}"]`);
+  const rect   = pageEl.getBoundingClientRect();
   const cssX = Math.max(0, Math.min(e.clientX - rect.left - dragOffset.x, 612 - comp.rect[2]));
   const cssY = Math.max(0, Math.min(e.clientY - rect.top  - dragOffset.y, 792 - comp.rect[3]));
 
-  // Convert CSS top back to ReportLab y (bottom-left origin)
   comp.rect[0] = Math.round(cssX);
   comp.rect[1] = Math.round(792 - cssY - comp.rect[3]);
 
@@ -421,18 +473,104 @@ function stopDrag() {
 }
 
 
+// ── Lock / unlock the editor ──────────────────────────────────────────────
+function setLocked(locked) {
+  document.body.classList.toggle("editor-locked", locked);
+  for (const id of ["btn-save", "btn-export", "btn-add-text", "btn-add-shape",
+                     "btn-delete", "btn-copy-var"]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = locked;
+  }
+  document.getElementById("variable-select").disabled = locked;
+}
+
+// ── Template status check ─────────────────────────────────────────────────
+async function checkStatus() {
+  const res = await fetch("/api/status");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    flash(`ERROR: Failed to check status — ${err.detail}`, "error");
+    return;
+  }
+  const data = await res.json();
+
+  if (!data.data_preloaded) {
+    setLocked(true);
+    document.getElementById("no-template-banner").style.display = "none";
+    return;
+  }
+
+  if (data.exp_tmpl_id) {
+    const sel = document.getElementById("template-select");
+    const opt = sel.querySelector(`option[value="${data.exp_tmpl_id}"]`);
+    if (opt) sel.value = data.exp_tmpl_id;
+  }
+  setLocked(false);
+
+  const banner = document.getElementById("no-template-banner");
+  if (!data.template_exists) {
+    banner.style.display = "flex";
+    document.getElementById("btn-create-template").addEventListener("click", async () => {
+      const r = await fetch("/api/template/create", { method: "POST" });
+      if (r.ok) {
+        banner.style.display = "none";
+        await loadTemplate();
+        flash("Empty template created — start adding components");
+      } else {
+        const e = await r.json().catch(() => ({ detail: r.statusText }));
+        flash(`ERROR: ${e.detail || "Failed to create template"}`, "error");
+      }
+    });
+  } else {
+    banner.style.display = "none";
+  }
+}
+
+// ── Template selector (load from DB by exp_tmpl_id) ───────────────────────
+async function loadTemplates() {
+  const res = await fetch("/api/templates");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    flash(`ERROR: Failed to load template list — ${err.detail}`, "error");
+    return;
+  }
+  const data = await res.json();
+  const sel  = document.getElementById("template-select");
+  sel.innerHTML = '<option value="" disabled selected>Load template…</option>';
+  for (const t of data.templates) {
+    const opt   = document.createElement("option");
+    opt.value   = t.id;
+    opt.textContent = t.name || (t.id.slice(0, 8) + "…");
+    sel.appendChild(opt);
+  }
+}
+
+async function onTemplateChange(e) {
+  const exp_tmpl_id = e.target.value;
+  if (!exp_tmpl_id) return;
+  const res = await fetch("/api/template/load", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exp_tmpl_id }),
+  });
+  const data = await res.json();
+  if (!res.ok) { flash(`ERROR: ${data.detail || "Load failed"}`, "error"); return; }
+
+  const name = data.name || (exp_tmpl_id.slice(0, 8) + "…");
+  setLocked(false);
+
+  await loadContext();
+  await loadTemplate();
+  await loadVariables();
+  flash(`Loaded: ${name} (${data.components} components)`);
+}
+
 // ── Export PDF ────────────────────────────────────────────────────────────
 async function exportPDF() {
-  try {
-    const res = await fetch("/api/render/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ context: {} }),
-    });
-    const data = await res.json();
-    if (!res.ok) { flash(data.detail || "Export failed", "error"); return; }
-    flash(`PDF saved — ${(data.size / 1024).toFixed(1)} KB → ${data.path}`);
-  } catch (e) { flash("Export failed", "error"); }
+  const res = await fetch("/api/render/pdf", { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) { flash(`ERROR: Export failed — ${data.detail}`, "error"); return; }
+  flash(`PDF saved — ${(data.size / 1024).toFixed(1)} KB → ${data.path}`);
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────

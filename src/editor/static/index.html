@@ -13,7 +13,10 @@
     <header>
       <h1>📄 PDF Template Editor</h1>
       <div class="toolbar">
-        <button id="btn-save"   class="btn btn-primary">Save</button>
+        <select id="template-select" class="template-select">
+          <option value="" disabled selected>Load template…</option>
+        </select>
+<button id="btn-save"   class="btn btn-primary">Save</button>
         <button id="btn-export" class="btn">Export PDF</button>
       </div>
     </header>
@@ -43,8 +46,9 @@
           <h3>Components</h3>
           <div id="components-list" class="components-list"></div>
           <div class="btn-row">
-            <button id="btn-add-text"  class="btn btn-sm">+ Text</button>
-            <button id="btn-add-shape" class="btn btn-sm">+ Shape</button>
+            <button id="btn-add-text"       class="btn btn-sm">+ Text</button>
+            <button id="btn-add-shape"      class="btn btn-sm">+ Shape</button>
+            <button id="btn-add-pagebreak"  class="btn btn-sm">+ Page</button>
           </div>
         </div>
 
@@ -53,9 +57,7 @@
       <!-- ── Canvas (middle) ────────────────────────────────────────── -->
       <section class="panel canvas-panel">
         <h2>Canvas</h2>
-        <div id="canvas-container" class="canvas-container">
-          <div id="canvas-page" class="canvas-page"></div>
-        </div>
+        <div id="canvas-container" class="canvas-container"></div>
       </section>
 
       <!-- ── Inspector (right) ─────────────────────────────────────── -->
@@ -148,6 +150,14 @@
       </section>
 
     </main>
+  </div>
+
+  <div id="no-template-banner" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:8px;padding:32px 40px;max-width:420px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3);">
+      <h2 style="margin:0 0 12px">No PDF template found</h2>
+      <p style="color:#555;margin:0 0 24px">This experiment does not have a PDF template yet. Create an empty one to start building.</p>
+      <button id="btn-create-template" style="padding:10px 28px;background:#6600ff;color:#fff;border:none;border-radius:4px;font-size:15px;cursor:pointer;">Create template</button>
+    </div>
   </div>
 
   <script src="/static/editor.js"></script>
