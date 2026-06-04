@@ -22,7 +22,32 @@ header {
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
 }
 header h1 { font-size: 18px; font-weight: 600; }
-.toolbar  { display: flex; gap: 8px; }
+.toolbar  { display: flex; gap: 8px; align-items: center; }
+.template-select { height: 32px; padding: 0 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; max-width: 280px; }
+
+/* Highlight the select when it's the required first action */
+body.editor-locked .template-select {
+  border-color: #64b5f6;
+  box-shadow: 0 0 0 2px rgba(100, 181, 246, 0.35);
+  animation: pulse-select 1.8s ease-in-out infinite;
+}
+@keyframes pulse-select {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(100, 181, 246, 0.2); }
+  50%       { box-shadow: 0 0 0 4px rgba(100, 181, 246, 0.45); }
+}
+
+/* Locked panels: dim and block interaction */
+body.editor-locked .left-panel,
+body.editor-locked .right-panel,
+body.editor-locked .canvas-container {
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Disabled buttons */
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+select:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 main {
@@ -120,6 +145,31 @@ main {
 .component-item:hover      { background: #f5f5f5; }
 .component-item.selected   { background: #e3f2fd; border-left: 3px solid #2196F3; padding-left: 7px; }
 
+.page-break-item {
+  padding: 4px 8px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  background: #f5f5f5;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.page-break-item button {
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  color: #c62828;
+  line-height: 1.4;
+}
+.page-break-item button:hover { background: #ffebee; }
+
 .comp-type {
   font-size: 10px;
   background: #e0e0e0;
@@ -134,13 +184,26 @@ main {
 .canvas-container {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #9e9e9e;
   border-radius: 4px;
+  padding: 0 20px 20px;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 20px;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.page-label {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ddd;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  padding: 12px 0 11px;
 }
 
 .canvas-page {
@@ -150,6 +213,20 @@ main {
   position: relative;
   box-shadow: 0 4px 20px rgba(0,0,0,.4);
   flex-shrink: 0;
+  margin-bottom: 20px;
+}
+
+.page-number {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  font-family: Helvetica, Arial, sans-serif;
+  color: #000;
+  pointer-events: none;
+  user-select: none;
 }
 
 .canvas-comp {
@@ -160,6 +237,111 @@ main {
   user-select: none;
 }
 .canvas-comp:hover { outline: 1px dashed #90caf9; }
+
+/* ── Panel tabs (Inspector / Pages) ─────────────────────────────────────── */
+.panel-tabs {
+  display: flex;
+  margin: -14px -14px 14px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 9px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #999;
+  background: #f0f0f0;
+  border: none;
+  border-bottom: 1px solid #e0e0e0;
+  cursor: pointer;
+  letter-spacing: .3px;
+  transition: color .15s, background .15s;
+}
+.tab-btn:first-child { border-radius: 6px 0 0 0; }
+.tab-btn:last-child  { border-radius: 0 6px 0 0; }
+.tab-btn:hover:not(.tab-btn-active) { color: #555; background: #e6e6e6; }
+.tab-btn-active {
+  color: #333;
+  font-weight: 700;
+  background: #fff;
+  border-bottom: 1px solid #fff;
+}
+
+/* ── Pages order list ────────────────────────────────────────────────────── */
+.page-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  margin-bottom: 6px;
+  background: #fafafa;
+}
+.page-card.page-card-active {
+  border-color: #beffb6;
+  background: #f3fff2;
+}
+.page-card-thumb {
+  width: 28px;
+  height: 36px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #aaa;
+}
+.page-card-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+}
+.page-card-label small {
+  display: block;
+  font-weight: 400;
+  color: #999;
+  font-size: 10px;
+}
+.page-card-btns { display: flex; flex-direction: column; gap: 2px; }
+.page-card-btns button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  color: #555;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-card-btns button:hover:not(:disabled) { background: #e3f2fd; border-color: #90caf9; }
+.page-card-btns button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.page-card-delete {
+  width: 22px !important;
+  height: 46px !important;
+  border: 1px solid #e57373 !important;
+  color: #e53935 !important;
+  border-radius: 3px;
+  background: #fff !important;
+  cursor: pointer;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.page-card-delete:hover { background: #ffebee !important; }
 
 /* ── Inspector ───────────────────────────────────────────────────────────── */
 .inspector-empty { text-align: center; color: #aaa; padding: 40px 0; font-size: 13px; }

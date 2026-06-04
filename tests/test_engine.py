@@ -1,101 +1,101 @@
 """
-Quick test of the Template Engine
+Stateless engine tests — no editor, no DB, no file I/O.
 Run: make test
 """
 
-from pathlib import Path
+from src.engine import Rect, TemplateEngine
+from src.engine.parser import extract_fields
+from src.output import render_pdf
 
-from engine import Rect, TemplateEngine
+COMPONENTS = [
+    {
+        "id": "title",
+        "type": "text",
+        "content": "Report for {{name}}",
+        "rect": [50, 750, 200, 30],
+        "style": {"font": "Helvetica", "size": 24},
+    },
+    {
+        "id": "body",
+        "type": "text",
+        "content": "{{template}}",
+        "rect": [50, 650, 500, 100],
+        "style": {"font": "Helvetica", "size": 12},
+    },
+]
 
-
-def test_basic_template():
-    """Test basic template with {{field}} interpolation"""
-    template_dict = {
-        "template": "Hello {{name}}, welcome to {{place}}!",
-        "components": [
-            {
-                "id": "title",
-                "type": "text",
-                "content": "Report",
-                "rect": [50, 750, 200, 30],
-                "style": {"font": "Helvetica", "size": 24},
-            },
-            {
-                "id": "content",
-                "type": "text",
-                "content": "{{template}}",
-                "rect": [50, 650, 500, 100],
-                "style": {"font": "Helvetica", "size": 12},
-            },
-        ],
-    }
-
-    engine = TemplateEngine(template_dict)
-    context = {
-        "name": "Alice",
-        "place": "the PDF Generator",
-        "template": "Hello Alice, welcome to the PDF Generator!",
-    }
-
-    # Test validation
-    errors = engine.validate(context)
-    assert not errors, f"Validation failed: {errors}"
-    print("✅ Validation passed")
-
-    # Test field extraction
-    assert "name" in engine.fields
-    assert "place" in engine.fields
-    print(f"✅ Fields extracted: {sorted(engine.fields)}")
-
-    # Test HTML rendering
-    html = engine._render_html(context)
-    assert "Alice" in html
-    assert "PDF Generator" in html
-    print("✅ HTML rendering works")
-
-    # Test PDF rendering
-    pdf_bytes = engine.render(format="pdf", context=context)
-    assert len(pdf_bytes) > 0
-    assert pdf_bytes.startswith(b"%PDF")
-    print(f"✅ PDF rendering works ({len(pdf_bytes)} bytes)")
-
-    # Save test PDF
-    out = Path("generated/test_output.pdf")
-    out.parent.mkdir(exist_ok=True)
-    out.write_bytes(pdf_bytes)
-    print(f"✅ PDF saved to {out}")
+CONTEXT = {
+    "name": "Alice",
+    "place": "the PDF Generator",
+    "template": "Hello Alice, welcome to the PDF Generator!",
+}
 
 
-def test_component_positioning():
-    """Test component positioning with Rect"""
-    rect = Rect(x=50, y=100, width=300, height=50)
-    assert rect.x == 50
-    assert [rect.x, rect.y, rect.width, rect.height] == [50, 100, 300, 50]
+def test_pdf_render():
+    engine = TemplateEngine(COMPONENTS)
+    ctx = engine.build_context(CONTEXT)
+    pdf = render_pdf(engine.components, ctx)
+    assert pdf.startswith(b"%PDF"), "Not a valid PDF"
+    assert len(pdf) > 0
+    print(f"✅ PDF render ({len(pdf)} bytes)")
 
-    # From list
-    rect2 = Rect.from_list([100, 200, 200, 75])
-    assert rect2.x == 100
-    assert rect2.height == 75
-    print("✅ Rect positioning works")
+
+def test_template_interpolation():
+    engine = TemplateEngine(COMPONENTS)
+    ctx = engine.build_context(CONTEXT)
+    assert ctx["template"] == "Hello Alice, welcome to the PDF Generator!"
+    print("✅ Template interpolation")
+
+
+def test_no_components_raises():
+    engine = TemplateEngine([])
+    try:
+        render_pdf(engine.components, CONTEXT)
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "no components" in str(e).lower()
+    print("✅ No-components raises ValueError")
+
+
+def test_rect():
+    r = Rect(x=50, y=100, width=300, height=50)
+    assert [r.x, r.y, r.width, r.height] == [50, 100, 300, 50]
+    r2 = Rect.from_list([100, 200, 200, 75])
+    assert r2.height == 75
+    print("✅ Rect")
 
 
 def test_field_extraction():
-    """Test extracting all fields from template"""
-    from engine.parser import extract_fields
-
-    text = "User {{name}} from {{country}}, plan: {{plan}}"
-    fields = extract_fields(text)
-    assert "name" in fields
-    assert "country" in fields
-    assert "plan" in fields
+    fields = extract_fields("{{name}} from {{country}}, plan: {{plan}}")
+    assert {"name", "country", "plan"}.issubset(set(fields))
     print(f"✅ Field extraction: {fields}")
+
+
+def test_shape_component():
+    components = [
+        {
+            "id": "box",
+            "type": "shape",
+            "shape_type": "rect",
+            "rect": [0, 0, 100, 50],
+            "color": "#FF0000",
+            "stroke_width": 1,
+            "fill": True,
+        }
+    ]
+    engine = TemplateEngine(components)
+    ctx = engine.build_context({})
+    pdf = render_pdf(engine.components, ctx)
+    assert pdf.startswith(b"%PDF")
+    print("✅ Shape component")
 
 
 if __name__ == "__main__":
     print("Testing Template Engine...\n")
-
-    test_component_positioning()
+    test_rect()
     test_field_extraction()
-    test_basic_template()
-
+    test_template_interpolation()
+    test_pdf_render()
+    test_no_components_raises()
+    test_shape_component()
     print("\n✅ All tests passed!")

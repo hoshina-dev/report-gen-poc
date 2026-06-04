@@ -7,13 +7,13 @@ from pathlib import Path
 
 import uvicorn
 
-from ..config import Config
+from ..config import EditorConfig
 
 logger = logging.getLogger(__name__)
 
 
 def start_editor(reload: bool = True) -> None:
-    cfg  = Config.from_env()
+    cfg = EditorConfig.from_env()
     host = cfg.editor_host
     port = cfg.editor_port
 

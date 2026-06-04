@@ -1,70 +1,149 @@
-"""
-Output handler for the PDF Report Generator.
-
-In production the job receives a JSON payload (from Argo / environment) that
-contains both the template layout and the data context.  This module is the
-single call-site: it hands everything to the TemplateEngine and returns bytes.
-
-Expected JSON shape (example):
-{
-    "template": "{{full_name}} ({{country}}, plan: {{plan}})",
-    "components": [
-        {
-            "id": "title",
-            "type": "text",
-            "content": "Report",
-            "rect": [50, 750, 500, 30],
-            "style": {"font": "Helvetica-Bold", "size": 24}
-        },
-        {
-            "id": "body",
-            "type": "text",
-            "content": "{{template}}",
-            "rect": [50, 650, 512, 80],
-            "style": {"font": "Helvetica", "size": 12}
-        }
-    ],
-    ... (all other keys become the data context for {{field}} interpolation)
-}
-
-The engine separates "template" + "components" (layout) from everything else
-(data).  Missing {{fields}} are left as-is unless strict=True.
-"""
-
+from io import BytesIO
 from pathlib import Path
+from typing import Any
 
+from reportlab.lib.colors import HexColor
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas as rl_canvas
+
+from .config import R2Config
 from .engine import TemplateEngine
+from .engine.components import (PageBreakComponent, ShapeComponent,
+                                TextComponent)
 from .engine.context import flatten_context
+from .engine.parser import interpolate_template
+from .r2 import upload_pdf
 
 
-def generate_pdf(data: dict) -> bytes:
-    """
-    Generate a PDF from a full job payload dict.
-
-    Args:
-        data: The full JSON payload.  Must contain at least a ``components``
-              list (or a ``template`` string).  All other fields become the
-              rendering context.
-
-    Returns:
-        Raw PDF bytes.
-    """
-    # Split layout definition from data context
-    layout = {
-        "template": data.get("template", ""),
-        "components": data.get("components", []),
-    }
+def generate_pdf(data: dict, components: list) -> bytes:
     context = flatten_context(data)
+    engine = TemplateEngine(components)
+    ctx = engine.build_context(context)
+    return render_pdf(engine.components, ctx)
 
-    engine = TemplateEngine(layout)
-    return engine.render("pdf", context)
+
+def generate_pdf_to_r2(data: dict, components: list, r2_cfg: R2Config) -> str:
+    """Generate PDF and upload to R2. Returns the object key."""
+    pdf_bytes = generate_pdf(data, components)
+    key = f"pdfs/{data.get('id', '')}.pdf"
+    upload_pdf(pdf_bytes, key, r2_cfg)
+    return key
 
 
-def generate_pdf_to_file(data: dict, path: str) -> str:
-    """Render PDF and write it to *path*, creating parent directories as needed."""
+def generate_pdf_to_file(data: dict, components: list, path: str) -> str:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    pdf_bytes = generate_pdf(data)
+    pdf_bytes = generate_pdf(data, components)
     with open(path, "wb") as f:
         f.write(pdf_bytes)
     print(f"PDF saved to {path}")
     return path
+
+
+def render_pdf(components: list, context: dict[str, Any]) -> bytes:
+    if not components:
+        raise ValueError(
+            "_render_pdf() called with no components. "
+            "Add at least one component before rendering."
+        )
+
+    buf = BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=letter)
+    page_width, _ = letter
+    c.setTitle("PDF Report")
+
+    total_pages = (
+        sum(1 for comp in components if isinstance(comp, PageBreakComponent)) + 1
+    )
+    current_page = 1
+
+    def draw_page_number() -> None:
+        label = f"Page {current_page} of {total_pages}"
+        label_w = c.stringWidth(label, "Helvetica", 10)
+        c.setFont("Helvetica", 10)
+        c.setFillColor(HexColor("#000000"))
+        c.drawString((page_width - label_w) / 2, 30, label)
+
+    for comp in components:
+        if isinstance(comp, PageBreakComponent):
+            draw_page_number()
+            c.showPage()
+            current_page += 1
+        elif isinstance(comp, TextComponent):
+            _draw_text(c, comp, context)
+        elif isinstance(comp, ShapeComponent):
+            _draw_shape(c, comp)
+
+    draw_page_number()
+    c.save()
+    return buf.getvalue()
+
+
+def _draw_text(c: Any, comp: TextComponent, context: dict[str, Any]) -> None:
+    text = interpolate_template(comp.content, context)
+
+    font = comp.style.font
+    if comp.style.bold and comp.style.italic:
+        font += "-BoldOblique"
+    elif comp.style.bold:
+        font += "-Bold"
+    elif comp.style.italic:
+        font += "-Oblique"
+
+    c.setFont(font, comp.style.size)
+    c.setFillColor(HexColor(comp.style.color))
+
+    size = comp.style.size
+    line_h = size * 1.2
+    max_w = comp.rect.width
+    align = comp.style.align
+    rx = comp.rect.x
+    y = comp.rect.y + comp.rect.height - size
+
+    def draw_line(line_text: str) -> float:
+        line_w = c.stringWidth(line_text, font, size)
+        if align == "center":
+            lx = rx + (max_w - line_w) / 2
+        elif align == "right":
+            lx = rx + max_w - line_w
+        else:
+            lx = rx
+        c.drawString(lx, y, line_text)
+        return y - line_h
+
+    for para in text.split("\n"):
+        if not para:
+            y -= line_h
+            continue
+        words = para.split(" ")
+        line = ""
+        for word in words:
+            candidate = f"{line} {word}" if line else word
+            if line and c.stringWidth(candidate, font, size) > max_w:
+                y = draw_line(line)
+                line = word
+            else:
+                line = candidate
+        if line:
+            y = draw_line(line)
+
+    c.setFillColor(HexColor("#000000"))
+
+
+def _draw_shape(c: Any, comp: ShapeComponent) -> None:
+    color = HexColor(comp.color)
+    c.setStrokeColor(color)
+    c.setLineWidth(comp.stroke_width)
+    fill_flag = 1 if comp.fill else 0
+    if comp.fill:
+        c.setFillColor(color)
+
+    x, y, w, h = comp.rect.x, comp.rect.y, comp.rect.width, comp.rect.height
+    if comp.shape_type == "rect":
+        c.rect(x, y, w, h, stroke=1, fill=fill_flag)
+    elif comp.shape_type == "line":
+        c.line(x, y + h / 2, x + w, y + h / 2)
+    elif comp.shape_type == "circle":
+        r = min(w, h) / 2
+        c.circle(x + w / 2, y + h / 2, r, stroke=1, fill=fill_flag)
+    else:
+        raise ValueError(f"Unknown shape_type: {comp.shape_type!r}")
